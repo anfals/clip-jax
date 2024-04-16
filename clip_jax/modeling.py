@@ -32,9 +32,9 @@ from flax.linen.partitioning import ScanIn
 from jax.ad_checkpoint import checkpoint_name
 from transformers import FlaxGenerationMixin, GenerationConfig
 
-from .maxtext.layers.models import Transformer
-from .maxtext import common_types
-from .maxtext.inference_utils import sampling
+from maxtext.layers.models import Transformer
+from maxtext import common_types
+from maxtext.inference_utils import sampling
 
 remat = nn_partitioning.remat
 
