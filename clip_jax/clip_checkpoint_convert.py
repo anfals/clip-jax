@@ -38,30 +38,48 @@ def find_missing_keys(dict_a, dict_b, path=None):
 
     return missing_keys
 
+def deep_merge(clip_config, hf_config):
+    for key in hf_config.keys():
+        if key in clip_config:
+            if isinstance(clip_config[key], dict) and isinstance(hf_config[key], dict):
+                deep_merge(clip_config[key], hf_config[key])
+            else:
+                clip_config[key] = hf_config[key]
+    
+
 def main(argv: Sequence[str]):
     # Get from huggingface; commenting out for now as I iterate
-    # model, preprocess_train, preprocess_val = open_clip.create_model_and_transforms('hf-hub:laion/CLIP-ViT-H-14-laion2B-s32B-b79K')
-    # tokenizer = open_clip.get_tokenizer('hf-hub:laion/CLIP-ViT-H-14-laion2B-s32B-b79K')
+    #model, preprocess_train, preprocess_val = open_clip.create_model_and_transforms('hf-hub:laion/CLIP-ViT-H-14-laion2B-s32B-b79K')
+    #tokenizer = open_clip.get_tokenizer('hf-hub:laion/CLIP-ViT-H-14-laion2B-s32B-b79K')
 
     # We need to align the configs so we initialize the model correctly
     clip_config = load_config("configs/large-patch16-clip.json")
     open_clip_hf_config = load_config("configs/open_clip_hf.json")
 
-    # TODO: we need to go and figure out the name mismatches between open-jax and clip-jax 
-    missing_keys = find_missing_keys(clip_config, open_clip_hf_config)
-    print(missing_keys)
+    # Copy over all fields that match
+    deep_merge(clip_config, open_clip_hf_config)
+
+    # Copy over the fields that don't properly match
+    merge_remaining_fields(clip_config, open_clip_hf_config)
 
     # Here are the steps 
-    # 1. Initialize the model
+    # 1. Compare the two different structures
     # 2. A metric ton of manually copying things from the HF model to the params
     # 3. Use Orbax to save this Jax checkpoint 
     
     clip_model = CLIPModel(**clip_config)
     rng = jax.random.PRNGKey(0)
     model_inputs = clip_model.init_inputs(rng)
-    params = clip_model.init(**model_inputs)["params"]
+    params = clip_model.init(**model_inputs)
 
-    a = 3
+    breakpoint()
+
+def merge_remaining_fields(clip_config, open_clip_hf_config):
+    keys_to_manually_override = {'text_config:num_heads': 'text_config_dict:num_attention_heads', 'vision_config:num_layers': 'vision_config_dict:num_hidden_layers', 'vision_config:num_heads': 'vision_config_dict:num_attention_heads', 'text_config:num_layers': 'text_config_dict:num_hidden_layers', 'vision_config:mlp_dim': 'vision_config_dict:intermediate_size', 'text_config:mlp_dim': 'text_config_dict:intermediate_size'}
+    for k, v in keys_to_manually_override.items():
+        clip_parts = k.split(':')
+        hf_parts = v.split(':')
+        clip_config[clip_parts[0]][clip_parts[1]] = open_clip_hf_config[hf_parts[0]][hf_parts[1]]
 
 
 
